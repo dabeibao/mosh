@@ -252,10 +252,70 @@ public:
   SavedCursor();
 };
 
+struct CursorConfig {
+  enum {
+    Noop = 0,
+    Reset = 1,
+    SetColor = 2,
+  };
+  static const int MaxShapeCount = 7; /* 0-6 are valid cursor control code */
+
+
+  uint8_t shape;
+  uint8_t red;
+  uint8_t green;
+  uint8_t blue;
+
+  uint8_t color_operation;
+
+  /* Optimization for state comparision.
+   * The colors/shape with same count will be considered as not changed */
+  union {
+    struct {
+      uint8_t color_count;
+      uint8_t shape_count;
+    };
+    uint16_t count;
+  };
+
+  CursorConfig()
+  {
+    color_operation = Noop;
+    count = 0;
+  }
+
+  bool has_color_operation() const { return color_operation != Noop; }
+  void reset_color()
+  {
+    color_operation = Reset;
+    color_count += 1;
+  }
+  void set_color(uint8_t color_red, uint8_t color_green, uint8_t color_blue)
+  {
+    red = color_red;
+    green = color_green;
+    blue = color_blue;
+    color_operation = SetColor;
+    color_count += 1;
+  }
+
+  void set_shape(uint8_t cursor_shape)
+  {
+    if (cursor_shape < MaxShapeCount) {
+      shape = cursor_shape;
+      shape_count += 1;
+    }
+  }
+
+  bool operator==( const CursorConfig& x ) const
+  {
+    return count == x.count;
+  }
+};
+
 class DrawState
 {
 private:
-  static const int cursor_shape_count = 7; /* 0-6 are valid cursor control code */
 
   int width, height;
 
@@ -285,6 +345,8 @@ public:
   bool reverse_video;
   bool bracketed_paste;
   int cursor_shape;
+  CursorConfig cursor_config;
+
 
   enum MouseReportingMode
   {
@@ -322,9 +384,15 @@ public:
   int get_height( void ) const { return height; }
   void set_cursor_shape(int shape)
   {
-    if ( shape >= 0 && shape < cursor_shape_count ) {
-      cursor_shape = shape;
-    }
+    cursor_config.set_shape((uint8_t)shape);
+  }
+  void reset_cursor_color()
+  {
+    cursor_config.reset_color();
+  }
+  void set_cursor_color(uint8_t red, uint8_t green, uint8_t blue)
+  {
+    cursor_config.set_color(red, green, blue);
   }
 
   void set_tab( void );
@@ -364,7 +432,8 @@ public:
            && ( reverse_video == x.reverse_video ) && ( renditions == x.renditions )
            && ( bracketed_paste == x.bracketed_paste ) && ( mouse_reporting_mode == x.mouse_reporting_mode )
            && ( mouse_focus_event == x.mouse_focus_event ) && ( mouse_alternate_scroll == x.mouse_alternate_scroll )
-           && ( mouse_encoding_mode == x.mouse_encoding_mode ) && (cursor_shape == x.cursor_shape);
+           && ( mouse_encoding_mode == x.mouse_encoding_mode ) && (cursor_shape == x.cursor_shape)
+           && ( cursor_config == x.cursor_config );
   }
 };
 

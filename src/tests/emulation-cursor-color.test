@@ -1,0 +1,61 @@
+#!/bin/sh
+
+#
+# This test exercises the cursor color ascii sequence in Mosh.
+#
+
+# shellcheck source=e2e-test-subrs
+. "$(dirname "$0")/e2e-test-subrs"
+PATH=$PATH:.:$srcdir
+# Top-level wrapper.
+if [ $# -eq 0 ]; then
+    e2e-test "$0" baseline direct verify
+    exit
+fi
+
+# OK, we have arguments, we're one of the test hooks.
+if [ $# -ne 1 ]; then
+    fail "bad arguments %s\n" "$@"
+fi
+
+baseline()
+{
+    while read -r red green blue text; do
+        printf '\nHTML \033]12;#%s%s%s\a%s' "$red" "$green" "$blue" "$text"
+        sleep 1
+    done <<'EOF'
+ff 00 00 red
+00 ff 00 green
+00 00 ff blue
+ff ff 00 yellow
+ff 00 ff magenta
+00 ff ff cyan
+ff a5 00 orange
+80 00 80 purple
+EOF
+
+    while read -r red green blue text; do
+        printf '\nX11 \033]12;rgb:%s/%s/%s\a%s' "$red" "$green" "$blue" "$text"
+        sleep 1
+    done <<'EOF'
+ff 00 00 red
+00 ff 00 green
+00 00 ff blue
+ff ff 00 yellow
+ff 00 ff magenta
+00 ff ff cyan
+ff a5 00 orange
+80 00 80 purple
+EOF
+
+    printf "\n\033]112\aReset"
+    sleep 1
+    echo
+}
+
+case $1 in
+    baseline|direct)
+        baseline;;
+    *)
+        fail "unknown test argument %s\n" "$1";;
+esac

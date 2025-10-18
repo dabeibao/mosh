@@ -124,6 +124,22 @@ std::string Display::new_frame( bool initialized, const Framebuffer& last, const
     frame.append(tmp);
   }
 
+  if ( !(f.ds.cursor_config == frame.last_frame.ds.cursor_config) ) {
+    if (f.ds.cursor_config.shape_count != frame.last_frame.ds.cursor_config.shape_count) {
+      snprintf(tmp, sizeof(tmp), "\033[%d q", f.ds.cursor_config.shape);
+      frame.append(tmp);
+    }
+    if (f.ds.cursor_config.color_count != frame.last_frame.ds.cursor_config.color_count) {
+      auto& config = f.ds.cursor_config;
+      if (config.color_operation == CursorConfig::Reset) {
+        frame.append("\033]112\007");
+      } else if (config.color_operation == CursorConfig::SetColor) {
+        snprintf(tmp, sizeof(tmp), "\033]12;#%02x%02x%02x\007", config.red, config.green, config.blue);
+        frame.append(tmp);
+      }
+    }
+  }
+
   /* has size changed? */
   if ( ( !initialized ) || ( f.ds.get_width() != frame.last_frame.ds.get_width() )
        || ( f.ds.get_height() != frame.last_frame.ds.get_height() ) ) {
