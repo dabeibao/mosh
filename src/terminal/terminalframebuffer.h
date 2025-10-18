@@ -252,6 +252,48 @@ public:
   SavedCursor();
 };
 
+struct CursorColor {
+  enum Operation {
+    Noop = 0,
+    Reset = 1,
+    SetColor = 2,
+  };
+  uint8_t red;
+  uint8_t green;
+  uint8_t blue;
+  uint8_t operation;
+
+  /* Optimization for state comparision.
+   * The colors with same count will be considered as not changed */
+  int count;
+
+  CursorColor()
+  {
+    operation = Noop;
+    count = 0;
+  }
+
+  bool has_operation() const { return operation != Noop; }
+  void do_reset_color()
+  {
+    operation = Reset;
+    count += 1;
+  }
+  void do_set_color(uint8_t color_red, uint8_t color_green, uint8_t color_blue)
+  {
+    red = color_red;
+    green = color_green;
+    blue = color_blue;
+    operation = SetColor;
+    count += 1;
+  }
+
+  bool operator==( const CursorColor& x ) const
+  {
+    return count == x.count;
+  }
+};
+
 class DrawState
 {
 private:
@@ -285,6 +327,8 @@ public:
   bool reverse_video;
   bool bracketed_paste;
   int cursor_shape;
+  CursorColor cursor_color;
+
 
   enum MouseReportingMode
   {
@@ -326,6 +370,14 @@ public:
       cursor_shape = shape;
     }
   }
+  void reset_cursor_color()
+  {
+    cursor_color.do_reset_color();
+  }
+  void set_cursor_color(uint8_t red, uint8_t green, uint8_t blue)
+  {
+    cursor_color.do_set_color(red, green, blue);
+  }
 
   void set_tab( void );
   void clear_tab( int col );
@@ -364,7 +416,8 @@ public:
            && ( reverse_video == x.reverse_video ) && ( renditions == x.renditions )
            && ( bracketed_paste == x.bracketed_paste ) && ( mouse_reporting_mode == x.mouse_reporting_mode )
            && ( mouse_focus_event == x.mouse_focus_event ) && ( mouse_alternate_scroll == x.mouse_alternate_scroll )
-           && ( mouse_encoding_mode == x.mouse_encoding_mode ) && (cursor_shape == x.cursor_shape);
+           && ( mouse_encoding_mode == x.mouse_encoding_mode ) && (cursor_shape == x.cursor_shape)
+           && ( cursor_color == x.cursor_color );
   }
 };
 

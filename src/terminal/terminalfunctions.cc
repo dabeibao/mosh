@@ -35,6 +35,7 @@
 #include <string>
 
 #include <unistd.h>
+#include <cwctype>
 
 #include "src/terminal/parseraction.h"
 #include "src/terminal/terminalframebuffer.h"
@@ -599,6 +600,104 @@ static void CSI_DECSTR( Framebuffer* fb, Dispatcher* dispatch __attribute( ( unu
 
 static Function func_CSI_DECSTR( CSI, "!p", CSI_DECSTR );
 
+struct osc_color {
+  uint8_t red;
+  uint8_t green;
+  uint8_t blue;
+};
+
+static bool parse_color_hex(const std::vector<wchar_t>& str, int start, int end, uint8_t& color_channel)
+{
+  if (end <= start || end - start > 4) {
+    return false;
+  }
+
+  int value = 0;
+  int max = 1;
+  for (int i = start; i < end; i += 1) {
+    wchar_t s = std::tolower(str[i]);
+    int v;
+
+    if (L'0' <= s && s <= L'9') {
+      v = s - L'0';
+    } else if (L'a' <= s && s <= L'f') {
+      v = s - L'a' + 10;
+    } else {
+      return false;
+    }
+    value = value * 16 + v;
+    max *= 16;
+  }
+  value = value * 256 / max;
+  if (value > 0xff) {
+    value = 0xff;
+  }
+
+  color_channel = (uint8_t)value;
+  return true;
+}
+
+/* parse rrggbb */
+static bool parse_color_html(const std::vector<wchar_t>& str, int start, osc_color& color)
+{
+  bool ok = parse_color_hex(str, start, start + 2, color.red);
+  if (!ok) {
+    return false;
+  }
+  ok = parse_color_hex(str, start + 2, start + 4, color.green);
+  if (!ok) {
+    return false;
+  }
+  return parse_color_hex(str, start + 4, start + 6, color.blue);
+}
+
+/* parse rr/gg/bb */
+static bool parse_color_x11(const std::vector<wchar_t>& str, int start, osc_color& color)
+{
+  auto it = std::find(str.begin() + start, str.end(), L'/');
+  if (it == str.end()) {
+    return false;
+  }
+  int first_slash = (int)(it - str.begin());
+  it = std::find(str.begin() + first_slash + 1, str.end(), L'/');
+  if (it == str.end()) {
+    return false;
+  }
+  int second_slash = (int)(it - str.begin());
+
+  bool ok = parse_color_hex(str, start, first_slash, color.red);
+  if (!ok) {
+    return false;
+  }
+  ok = parse_color_hex(str, first_slash + 1, second_slash, color.green);
+  if (!ok) {
+    return false;
+  }
+  return parse_color_hex(str, second_slash + 1, (int)str.size(), color.blue);
+}
+
+/* parse osc12 color spec */
+static bool parse_color_spec(const std::vector<wchar_t>& str, int start_offset, osc_color &color)
+{
+  if ((int)str.size() < start_offset + 1) {
+    return false;
+  }
+  /* HTML format: #rrggbb */
+  if (str[start_offset] == '#' && (int)str.size() >= start_offset + 7) {
+    return parse_color_html(str, start_offset + 1, color);
+  }
+  /* X11/xterm: rgb:rr/gg/bb */
+  if (str.size() - start_offset > 4
+      && str[start_offset] == 'r' && str[start_offset + 1] == 'g' && str[start_offset + 2] == 'b'
+      && str[start_offset + 3] == ':') {
+    /* skip the rgb: */
+    return parse_color_x11(str, start_offset + 4, color);
+  }
+
+  /* color name: not supported yet  */
+  return false;
+}
+
 /* xterm uses an Operating System Command to set the window title */
 void Dispatcher::OSC_dispatch( const Parser::OSC_End* act __attribute( ( unused ) ), Framebuffer* fb )
 {
@@ -608,6 +707,16 @@ void Dispatcher::OSC_dispatch( const Parser::OSC_End* act __attribute( ( unused 
     Terminal::Framebuffer::title_type clipboard( OSC_string.begin() + 5, OSC_string.end() );
     fb->set_clipboard( clipboard );
     /* handle osc terminal title sequence */
+  } else if ( OSC_string.size() == 3 && OSC_string[0] == L'1' && OSC_string[1] == L'1' && OSC_string[2] == L'2' ) {
+    /* cursor color reset */
+    fb->ds.reset_cursor_color();
+  } else if ( OSC_string.size() >= 3 && OSC_string[0] == L'1' && OSC_string[1] == L'2' && OSC_string[2] == L';' ) {
+    /* 12: cursor color */
+    osc_color color;
+    bool ok = parse_color_spec(OSC_string, 3, color);
+    if (ok) {
+      fb->ds.set_cursor_color(color.red, color.green, color.blue);
+    }
   } else if ( OSC_string.size() >= 1 ) {
     long cmd_num = -1;
     int offset = 0;

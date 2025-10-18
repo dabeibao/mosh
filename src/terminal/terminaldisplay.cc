@@ -124,6 +124,16 @@ std::string Display::new_frame( bool initialized, const Framebuffer& last, const
     frame.append(tmp);
   }
 
+  if ( !(f.ds.cursor_color == frame.last_frame.ds.cursor_color) ) {
+    auto& color = f.ds.cursor_color;
+    if (color.operation == CursorColor::Operation::Reset) {
+      frame.append("\033]112\007");
+    } else if (color.operation == CursorColor::Operation::SetColor) {
+      snprintf(tmp, sizeof(tmp), "\033]12;#%02x%02x%02x\007", color.red, color.green, color.blue);
+      frame.append(tmp);
+    }
+  }
+
   /* has size changed? */
   if ( ( !initialized ) || ( f.ds.get_width() != frame.last_frame.ds.get_width() )
        || ( f.ds.get_height() != frame.last_frame.ds.get_height() ) ) {
