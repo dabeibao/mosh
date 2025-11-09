@@ -345,7 +345,6 @@ public:
   bool cursor_visible;
   bool reverse_video;
   bool bracketed_paste;
-  int cursor_shape;
   CursorConfig cursor_config;
 
 
@@ -433,8 +432,7 @@ public:
            && ( reverse_video == x.reverse_video ) && ( renditions == x.renditions )
            && ( bracketed_paste == x.bracketed_paste ) && ( mouse_reporting_mode == x.mouse_reporting_mode )
            && ( mouse_focus_event == x.mouse_focus_event ) && ( mouse_alternate_scroll == x.mouse_alternate_scroll )
-           && ( mouse_encoding_mode == x.mouse_encoding_mode ) && (cursor_shape == x.cursor_shape)
-           && ( cursor_config == x.cursor_config );
+           && ( mouse_encoding_mode == x.mouse_encoding_mode ) && ( cursor_config == x.cursor_config );
   }
 };
 
